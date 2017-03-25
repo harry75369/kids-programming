@@ -1,118 +1,203 @@
 import sys
 import pygame as pg
 
-SPRITE_SZ = 64
+SCALE = 1
+
+class Resource:
+
+	def __init__(self):
+		self.images = pg.image.load("images/resource.bmp")
+		self.images.set_colorkey(pg.Color("black"))
+		self.fire_sound = pg.mixer.Sound('sounds/fire.wav')
+		self.hit_tank_sound = pg.mixer.Sound('sounds/hit_tank.wav')
+		self.hit_wall_sound = pg.mixer.Sound('sounds/hit_wall.wav')
+		self.hit_nothing_sound = pg.mixer.Sound('sounds/hit_nothing.wav')
+
+	def get_tank_size(self):
+		return 64;
+
+	def get_tank_size_scaled(self):
+		return int(self.get_tank_size() * SCALE);
+
+	def get_tank_costumes(self):
+		img = self.images.copy()
+		img.set_palette([pg.Color(0,0,0,255), pg.Color(104,104,0,255), pg.Color(231,156,33,255), pg.Color(231,231,148,255)])
+		size = self.get_tank_size()
+		costumes = {
+			'up':    [img.subsurface(pg.Rect(0, 0, size, size)), img.subsurface(pg.Rect(64, 0, size, size))],
+			'left':  [img.subsurface(pg.Rect(128, 0, size, size)), img.subsurface(pg.Rect(192, 0, size, size))],
+			'down':  [img.subsurface(pg.Rect(256, 0, size, size)), img.subsurface(pg.Rect(320, 0, size, size))],
+			'right': [img.subsurface(pg.Rect(384, 0, size, size)), img.subsurface(pg.Rect(448, 0, size, size))]
+		}
+		return costumes
+
+	def get_bullet_size(self, dir = 'up'):
+		size_dict = {
+			'up': (12, 16),
+			'left': (16, 12),
+			'down': (12, 16),
+			'right': (16, 12)
+		}
+		return size_dict[dir]
+
+	def get_bullet_size_scaled(self, dir = 'up'):
+		w, h = self.get_bullet_size(dir)
+		return (int(w * SCALE), int(h * SCALE))
+
+	def get_bullet_costumes(self, dir):
+		img = self.images.copy()
+		img.set_palette_at(2, pg.Color(182,182,182,255))
+		w, h = self.get_bullet_size()
+		costume_dict = {
+			'up': pg.Rect(268, 856, w, h),
+			'left': pg.Rect(296, 856, h, w),
+			'down': pg.Rect(332, 856, w, h),
+			'right': pg.Rect(360, 856, h, w)
+		}
+		costumes = {
+			'original': img.subsurface(costume_dict[dir]),
+			'boom1': None,
+			'boom2': None,
+			'boom3': None
+		}
+		return costumes
+
+	def play_fire_sound(self):
+		self.fire_sound.play()
+
+	def play_hit_tank_sound(self):
+		self.hit_tank_sound.play()
+
+	def play_hit_wall_sound(self):
+		self.hit_wall_sound.play()
+
+	def play_hit_nothing_sound(self):
+		self.hit_nothing_sound.play()
 
 class Tank:
 
-	def __init__(self, screen):
-		resource = pg.image.load("images/resource.bmp")
-		resource.set_palette([
-			pg.Color(0,0,0,255), pg.Color(104,104,0,255), pg.Color(231,156,33,255), pg.Color(231,231,148,255)
-		])
+	SPEED = 5
+
+	def __init__(self, screen, resource):
 		self.screen = screen
-		self.pos_x = (screen.get_width() - SPRITE_SZ) / 2
-		self.pos_y = (screen.get_height() - SPRITE_SZ) / 2
-		self.costumes = {
-			'up':    [resource.subsurface(pg.Rect(0, 0, SPRITE_SZ, SPRITE_SZ)), resource.subsurface(pg.Rect(64, 0, SPRITE_SZ, SPRITE_SZ))],
-			'left':  [resource.subsurface(pg.Rect(128, 0, SPRITE_SZ, SPRITE_SZ)), resource.subsurface(pg.Rect(192, 0, SPRITE_SZ, SPRITE_SZ))],
-			'down':  [resource.subsurface(pg.Rect(256, 0, SPRITE_SZ, SPRITE_SZ)), resource.subsurface(pg.Rect(320, 0, SPRITE_SZ, SPRITE_SZ))],
-			'right': [resource.subsurface(pg.Rect(384, 0, SPRITE_SZ, SPRITE_SZ)), resource.subsurface(pg.Rect(448, 0, SPRITE_SZ, SPRITE_SZ))]
-		}
+		self.resource = resource
+		self.size = resource.get_tank_size_scaled()
+		self.pos_x = (screen.get_width() - self.size) / 2
+		self.pos_y = (screen.get_height() - self.size) / 2
+		self.costumes = resource.get_tank_costumes()
 		self.dir = 'up'
 		self.wheel = 0
-		self.speed = 5
-		self.time = None
-		for costumes in self.costumes.values():
-			costumes[0].set_colorkey(pg.Color("black"))
-			costumes[1].set_colorkey(pg.Color("black"))
+		self.fire_time = None
+
+		for costume in self.costumes.values():
+			costume[0] = pg.transform.scale(costume[0], (self.size, self.size))
+			costume[1] = pg.transform.scale(costume[1], (self.size, self.size))
+
+	def type(self):
+		return "TANK"
+
+	def finished(self):
+		return False
+
+	def position(self):
+		return (self.pos_x, self.pos_y, self.size, self.size)
 
 	def move_up(self):
 		self.dir = 'up'
-		self.pos_y -= self.speed
+		self.pos_y -= Tank.SPEED
 		self.wheel = (self.wheel + 1) % 2
 		self.make_within_screen()
 
 	def move_left(self):
 		self.dir = 'left'
-		self.pos_x -= self.speed
+		self.pos_x -= Tank.SPEED
 		self.wheel = (self.wheel + 1) % 2
 		self.make_within_screen()
 
 	def move_down(self):
 		self.dir = 'down'
-		self.pos_y += self.speed
+		self.pos_y += Tank.SPEED
 		self.wheel = (self.wheel + 1) % 2
 		self.make_within_screen()
 
 	def move_right(self):
 		self.dir = 'right'
-		self.pos_x += self.speed
+		self.pos_x += Tank.SPEED
 		self.wheel = (self.wheel + 1) % 2
 		self.make_within_screen()
 
 	def make_within_screen(self):
 		w = self.screen.get_width()
 		h = self.screen.get_height()
-		self.pos_x = max(0, min(w - SPRITE_SZ, self.pos_x))
-		self.pos_y = max(0, min(h - SPRITE_SZ, self.pos_y))
+		self.pos_x = max(0, min(w - self.size, self.pos_x))
+		self.pos_y = max(0, min(h - self.size, self.pos_y))
 
 	def draw(self):
 		self.screen.blit(self.costumes[self.dir][self.wheel], (self.pos_x, self.pos_y))
 
 	def fire(self):
-		time = pg.time.get_ticks()
-		if (self.time == None or time - self.time > 400):
-			self.time = time
-			return Bullet(self.screen, self.pos_x, self.pos_y, self.dir)
+		now = pg.time.get_ticks()
+		if (self.fire_time == None or now - self.fire_time > 400):
+			self.fire_time = now
+			return Bullet(self.screen, self.resource, self.pos_x, self.pos_y, self.dir)
 		return None
 
 class Bullet:
 
-	def __init__(self, screen, x, y, dir):
-		resource = pg.image.load("images/resource.bmp")
-		resource.set_palette_at(2, pg.Color(182,182,182,255))
-		costume_dict = {
-			'up': pg.Rect(268, 856, 12, 16),
-			'left': pg.Rect(296, 856, 16, 12),
-			'down': pg.Rect(332, 856, 12, 16),
-			'right': pg.Rect(360, 856, 16, 12)
-		}
-		speed = 6
-		speed_dict = {
-			'up': (0, -speed),
-			'left': (-speed, 0),
-			'down': (0, speed),
-			'right': (speed, 0)
-		}
-		isHorizontal = dir == 'left' or dir == 'right';
+	SPEED = 6
+	SPEED_DICT = {
+		'up': (0, -SPEED),
+		'left': (-SPEED, 0),
+		'down': (0, SPEED),
+		'right': (SPEED, 0)
+	}
+	
+	def __init__(self, screen, resource, x, y, dir):
 		self.screen = screen
-		self.pos_x = x + (SPRITE_SZ - (16 if isHorizontal else 12)) / 2
-		self.pos_y = y + (SPRITE_SZ - (12 if isHorizontal else 16)) / 2
-		self.costume = resource.subsurface(costume_dict[dir])
-		self.speed = speed_dict[dir]
-		self.costume.set_colorkey(pg.Color("black"))
-		self.fire_sound = pg.mixer.Sound('sounds/fire.wav')
-		self.hit_tank_sound = pg.mixer.Sound('sounds/hit_tank.wav')
-		self.hit_wall_sound = pg.mixer.Sound('sounds/hit_wall.wav')
-		self.hit_nothing_sound = pg.mixer.Sound('sounds/hit_nothing.wav')
-		self.fire_sound.play()
+		self.resource = resource
+		self.tank_size = resource.get_tank_size_scaled()
+		self.size = resource.get_bullet_size_scaled(dir)
+		self.w, self.h = self.size
+		self.pos_x = x + (self.tank_size - self.w) / 2
+		self.pos_y = y + (self.tank_size - self.h) / 2
+		self.costumes = resource.get_bullet_costumes(dir)
+		self.speed = Bullet.SPEED_DICT[dir]
+
+		self.resource.play_fire_sound()
+		for key in self.costumes.keys():
+			if self.costumes[key] and key == 'original':
+				c = self.costumes[key]
+				self.costumes[key] = pg.transform.scale(c, self.size)
+
+		self.state = "original"
+
+	def type(self):
+		return "BULLET"
+
+	def finished(self):
+		return self.state == "finished"
+
+	def position(self):
+		return (self.pos_x, self.pos_y, self.w, self.h)
 
 	def hit_tank(self):
-		pass
+		self.resource.play_hit_tank_sound()
+		self.state = "finished"
 
 	def hit_wall(self):
-		pass
+		self.resource.play_hit_wall_sound()
+		self.state = "finished"
 
 	def hit_nothing(self):
-		pass
+		self.resource.play_hit_nothing_sound()
+		self.state = "finished"
 
 	def draw(self):
-		dx, dy = self.speed
-		self.pos_x += dx
-		self.pos_y += dy
-		self.screen.blit(self.costume, (self.pos_x, self.pos_y))
-
+		if not self.finished():
+			dx, dy = self.speed
+			self.pos_x += dx
+			self.pos_y += dy
+			self.screen.blit(self.costumes[self.state], (self.pos_x, self.pos_y))
 
 class Game:
 
@@ -123,12 +208,14 @@ class Game:
 		pg.key.set_repeat(30)
 		self.clock = pg.time.Clock()
 		self.screen = pg.display.set_mode((800, 600))
-		self.sprites = []
+		self.resource = Resource()
 
-		self.my_tank = Tank(self.screen)
-		self.sprites.append(self.my_tank)
+		self.sprite_queue = []
+		self.my_tank = Tank(self.screen, self.resource)
+		self.sprite_queue.append(self.my_tank)
 
 	def run(self):
+		screen_w, screen_h = self.screen.get_size()
 		while True:
 			self.clock.tick(100)
 			for event in pg.event.get():
@@ -148,10 +235,18 @@ class Game:
 					elif event.key == pg.K_SPACE:
 						bullet = self.my_tank.fire()
 						if bullet:
-							self.sprites.append(bullet)
+							self.sprite_queue.append(bullet)
+
+			for sprite in self.sprite_queue:
+				if sprite.type() == "BULLET":
+					x, y, w, h = sprite.position()
+					if (x < 0) or (x + w > screen_w) or (y < 0) or (y + h > screen_h):
+						sprite.hit_nothing()
+
+			self.sprite_queue = [s for s in self.sprite_queue if not s.finished()]
 
 			self.screen.fill(pg.Color("black"))
-			for sprite in self.sprites:
+			for sprite in self.sprite_queue:
 				sprite.draw()
 			pg.display.flip()
 
