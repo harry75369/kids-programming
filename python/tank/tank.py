@@ -14,10 +14,10 @@ class Resource:
 		self.hit_nothing_sound = pg.mixer.Sound('sounds/hit_nothing.wav')
 
 	def get_tank_size(self):
-		return 64;
+		return 64
 
 	def get_tank_size_scaled(self):
-		return int(self.get_tank_size() * SCALE);
+		return int(self.get_tank_size() * SCALE)
 
 	def get_tank_costumes(self):
 		img = self.images.copy()
@@ -44,6 +44,13 @@ class Resource:
 		w, h = self.get_bullet_size(dir)
 		return (int(w * SCALE), int(h * SCALE))
 
+	def get_boom_size(self, boomCounter):
+		sizes = [64, 64, 64, 128, 128]
+		return sizes[boomCounter]
+
+	def get_boom_size_scaled(self, boomCounter):
+		return int(self.get_boom_size(boomCounter) * SCALE)
+
 	def get_bullet_costumes(self, dir):
 		img = self.images.copy()
 		img.set_palette_at(2, pg.Color(182,182,182,255))
@@ -54,11 +61,15 @@ class Resource:
 			'down': pg.Rect(332, 856, w, h),
 			'right': pg.Rect(360, 856, h, w)
 		}
+		img_boom = img.copy()
+		img_boom.set_palette([pg.Color(0,0,0,255),pg.Color(101,0,134,255),pg.Color(189,56,36,255),pg.Color(255,255,255,255)])
 		costumes = {
 			'original': img.subsurface(costume_dict[dir]),
-			'boom1': None,
-			'boom2': None,
-			'boom3': None
+			'booms': [
+				img_boom.subsurface(pg.Rect(256, 960, self.get_boom_size(0), self.get_boom_size(0))),
+				img_boom.subsurface(pg.Rect(320, 960, self.get_boom_size(1), self.get_boom_size(1))),
+				img_boom.subsurface(pg.Rect(384, 960, self.get_boom_size(2), self.get_boom_size(2)))
+			]
 		}
 		return costumes
 
@@ -177,6 +188,9 @@ class Bullet:
 	def finished(self):
 		return self.state == "finished"
 
+	def booming(self):
+		return self.state == "booming"
+
 	def position(self):
 		return (self.pos_x, self.pos_y, self.w, self.h)
 
@@ -189,22 +203,37 @@ class Bullet:
 		self.state = "finished"
 
 	def hit_nothing(self):
-		self.resource.play_hit_nothing_sound()
-		self.state = "finished"
+		if not self.finished() and not self.booming():
+			self.resource.play_hit_nothing_sound()
+			self.boom(3)
+
+	def boom(self, boomStop):
+		self.state = "booming"
+		self.boomCounter = 0
+		self.boomStop = boomStop
+		self.pos_x -= (self.tank_size - self.w) / 2
+		self.pos_y -= (self.tank_size - self.h) / 2
 
 	def draw(self):
-		if not self.finished():
+		if self.state == "original":
 			dx, dy = self.speed
 			self.pos_x += dx
 			self.pos_y += dy
 			self.screen.blit(self.costumes[self.state], (self.pos_x, self.pos_y))
+		elif self.state == "booming":
+			pos_x = self.pos_x + (self.tank_size - self.resource.get_boom_size_scaled(int(self.boomCounter))) / 2
+			pos_y = self.pos_y + (self.tank_size - self.resource.get_boom_size_scaled(int(self.boomCounter))) / 2
+			self.screen.blit(self.costumes["booms"][int(self.boomCounter)], (pos_x, pos_y))
+			self.boomCounter += 0.1
+			if self.boomCounter >= self.boomStop:
+				self.state = "finished"
 
 class Game:
 
 	def __init__(self):
-		pg.mixer.pre_init()
-		pg.init()
+		pg.mixer.pre_init(44100, -16, 1, 2048)
 		pg.mixer.init()
+		pg.init()
 		pg.key.set_repeat(30)
 		self.clock = pg.time.Clock()
 		self.screen = pg.display.set_mode((800, 600))
