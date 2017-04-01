@@ -148,14 +148,14 @@ class Tank:
 
 	def fire(self):
 		now = pg.time.get_ticks()
-		if (self.fire_time == None or now - self.fire_time > 400):
+		if (self.fire_time == None or now - self.fire_time > 300):
 			self.fire_time = now
 			return Bullet(self.screen, self.resource, self.pos_x, self.pos_y, self.dir)
 		return None
 
 class Bullet:
 
-	SPEED = 6
+	SPEED = 20
 	SPEED_DICT = {
 		'up': (0, -SPEED),
 		'left': (-SPEED, 0),
@@ -224,7 +224,7 @@ class Bullet:
 			pos_x = self.pos_x + (self.tank_size - self.resource.get_boom_size_scaled(int(self.boomCounter))) / 2
 			pos_y = self.pos_y + (self.tank_size - self.resource.get_boom_size_scaled(int(self.boomCounter))) / 2
 			self.screen.blit(self.costumes["booms"][int(self.boomCounter)], (pos_x, pos_y))
-			self.boomCounter += 0.1
+			self.boomCounter += 0.25
 			if self.boomCounter >= self.boomStop:
 				self.state = "finished"
 
