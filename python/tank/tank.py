@@ -192,7 +192,7 @@ class Tank:
 	def fire(self):
 		if self.is_stop: return
 		now = pg.time.get_ticks()
-		if (self.fire_time == None or now - self.fire_time > 400):
+		if (self.fire_time == None or now - self.fire_time > 300):
 			self.fire_time = now
 			return Bullet(self.screen, self.resource, self.pos_x, self.pos_y, self.dir)
 		return None
@@ -202,7 +202,7 @@ class Tank:
 
 class Bullet:
 
-	SPEED = 6
+	SPEED = 20
 	SPEED_DICT = {
 		'up': (0, -SPEED),
 		'left': (-SPEED, 0),
