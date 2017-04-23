@@ -1,9 +1,14 @@
 import sys
 import pygame as pg
-
-SCALE = 1
+import random
 
 class Resource:
+
+	@staticmethod
+	def scale(size):
+		SCALE = 1
+		w, h = size
+		return (int(w * SCALE), int(h * SCALE))
 
 	def __init__(self):
 		self.images = pg.image.load("images/resource.bmp")
@@ -13,25 +18,43 @@ class Resource:
 		self.hit_wall_sound = pg.mixer.Sound('sounds/hit_wall.wav')
 		self.hit_nothing_sound = pg.mixer.Sound('sounds/hit_nothing.wav')
 
+    #######################################################################################
+    # tank size and costumes
+    #######################################################################################
 	def get_tank_size(self):
-		return 64
+		return (64, 64)
 
 	def get_tank_size_scaled(self):
-		return int(self.get_tank_size() * SCALE)
+		return Resource.scale(self.get_tank_size())
 
-	def get_tank_costumes(self):
-		img = self.images.copy()
-		img.set_palette([pg.Color(0,0,0,255), pg.Color(104,104,0,255), pg.Color(231,156,33,255), pg.Color(231,231,148,255)])
-		size = self.get_tank_size()
-		costumes = {
-			'up':    [img.subsurface(pg.Rect(0, 0, size, size)), img.subsurface(pg.Rect(64, 0, size, size))],
-			'left':  [img.subsurface(pg.Rect(128, 0, size, size)), img.subsurface(pg.Rect(192, 0, size, size))],
-			'down':  [img.subsurface(pg.Rect(256, 0, size, size)), img.subsurface(pg.Rect(320, 0, size, size))],
-			'right': [img.subsurface(pg.Rect(384, 0, size, size)), img.subsurface(pg.Rect(448, 0, size, size))]
+	def get_tank_costumes(self, color):
+		palettes = {
+			'yellow': [pg.Color(0,0,0,255), pg.Color(104,104,0,255), pg.Color(231,156,33,255), pg.Color(231,231,148,255)],
+			'white': [pg.Color(0,0,0,255),pg.Color(0,75,84,255),pg.Color(182,182,182,255),pg.Color(255,255,255,255)]
 		}
-		return costumes
+		img = self.images.copy()
+		img.set_palette(palettes[color])
+		w, h = self.get_tank_size()
+		costumes_dict = {
+			'yellow': {
+				'up':    [img.subsurface(pg.Rect(0, 0, w, h)), img.subsurface(pg.Rect(64, 0, w, h))],
+				'left':  [img.subsurface(pg.Rect(128, 0, w, h)), img.subsurface(pg.Rect(192, 0, w, h))],
+				'down':  [img.subsurface(pg.Rect(256, 0, w, h)), img.subsurface(pg.Rect(320, 0, w, h))],
+				'right': [img.subsurface(pg.Rect(384, 0, w, h)), img.subsurface(pg.Rect(448, 0, w, h))]
+			},
+			'white': {
+				'up':    [img.subsurface(pg.Rect(0, 256, w, h)), img.subsurface(pg.Rect(64, 256, w, h))],
+				'left':  [img.subsurface(pg.Rect(128, 256, w, h)), img.subsurface(pg.Rect(192, 256, w, h))],
+				'down':  [img.subsurface(pg.Rect(256, 256, w, h)), img.subsurface(pg.Rect(320, 256, w, h))],
+				'right': [img.subsurface(pg.Rect(384, 256, w, h)), img.subsurface(pg.Rect(448, 256, w, h))]
+			}
+		}
+		return costumes_dict[color]
 
-	def get_bullet_size(self, dir = 'up'):
+	#######################################################################################
+	# bullet size and costumes
+	#######################################################################################
+	def get_bullet_size(self, dir):
 		size_dict = {
 			'up': (12, 16),
 			'left': (16, 12),
@@ -40,39 +63,55 @@ class Resource:
 		}
 		return size_dict[dir]
 
-	def get_bullet_size_scaled(self, dir = 'up'):
-		w, h = self.get_bullet_size(dir)
-		return (int(w * SCALE), int(h * SCALE))
+	def get_bullet_size_scaled(self, dir):
+		return Resource.scale(self.get_bullet_size(dir))
 
-	def get_boom_size(self, boomCounter):
-		sizes = [64, 64, 64, 128, 128]
-		return sizes[boomCounter]
-
-	def get_boom_size_scaled(self, boomCounter):
-		return int(self.get_boom_size(boomCounter) * SCALE)
-
-	def get_bullet_costumes(self, dir):
+	def get_bullet_costumes(self):
 		img = self.images.copy()
 		img.set_palette_at(2, pg.Color(182,182,182,255))
-		w, h = self.get_bullet_size()
-		costume_dict = {
-			'up': pg.Rect(268, 856, w, h),
-			'left': pg.Rect(296, 856, h, w),
-			'down': pg.Rect(332, 856, w, h),
-			'right': pg.Rect(360, 856, h, w)
-		}
-		img_boom = img.copy()
-		img_boom.set_palette([pg.Color(0,0,0,255),pg.Color(101,0,134,255),pg.Color(189,56,36,255),pg.Color(255,255,255,255)])
+		w, h = self.get_bullet_size('up')
 		costumes = {
-			'original': img.subsurface(costume_dict[dir]),
-			'booms': [
-				img_boom.subsurface(pg.Rect(256, 960, self.get_boom_size(0), self.get_boom_size(0))),
-				img_boom.subsurface(pg.Rect(320, 960, self.get_boom_size(1), self.get_boom_size(1))),
-				img_boom.subsurface(pg.Rect(384, 960, self.get_boom_size(2), self.get_boom_size(2)))
-			]
+			'up': img.subsurface(pg.Rect(268, 856, w, h)),
+			'left': img.subsurface(pg.Rect(296, 856, h, w)),
+			'down': img.subsurface(pg.Rect(332, 856, w, h)),
+			'right': img.subsurface(pg.Rect(360, 856, h, w))
 		}
 		return costumes
 
+	#######################################################################################
+	# boom size and costumes
+	#######################################################################################
+	def get_boom_size(self, boom_counter):
+		sizes = [(64, 64), (64, 64), (64, 64), (128, 128), (128, 128)]
+		return sizes[boom_counter]
+
+	def get_boom_size_scaled(self, boom_counter):
+		return Resource.scale(self.get_boom_size(boom_counter))
+
+	def get_boom_costumes(self):
+		img = self.images.copy()
+		img.set_palette([pg.Color(0,0,0,255),pg.Color(101,0,134,255),pg.Color(189,56,36,255),pg.Color(255,255,255,255)])
+		sizes = [self.get_boom_size(i) for i in range(5)]
+		ws = [w for (w, h) in sizes]
+		hs = [h for (w, h) in sizes]
+		boom3 = img.subsurface(pg.Rect(256, 896, ws[3], hs[3])).copy()
+		boom3_part2 = img.subsurface(pg.Rect(384, 896, ws[3], hs[3]/2))
+		boom3.blit((boom3_part2), (0, hs[3]/2))
+		boom4 = img.subsurface(pg.Rect(128, 896, ws[4], hs[4])).copy()
+		boom4_part2 = img.subsurface(pg.Rect(0, 960, ws[4], hs[4]/2))
+		boom4.blit((boom4_part2), (0, 0))
+		costumes = [
+			img.subsurface(pg.Rect(256, 960, ws[0], hs[0])),
+			img.subsurface(pg.Rect(320, 960, ws[1], hs[1])),
+			img.subsurface(pg.Rect(384, 960, ws[2], hs[2])),
+			boom3,
+			boom4
+		]
+		return costumes
+
+	#######################################################################################
+	# sounds
+	#######################################################################################
 	def play_fire_sound(self):
 		self.fire_sound.play()
 
@@ -89,20 +128,22 @@ class Tank:
 
 	SPEED = 5
 
-	def __init__(self, screen, resource):
+	def __init__(self, screen, resource, color = 'yellow'):
 		self.screen = screen
 		self.resource = resource
 		self.size = resource.get_tank_size_scaled()
-		self.pos_x = (screen.get_width() - self.size) / 2
-		self.pos_y = (screen.get_height() - self.size) / 2
-		self.costumes = resource.get_tank_costumes()
+		self.width, self.height = self.size
+		self.pos_x = (screen.get_width() - self.width) / 2
+		self.pos_y = (screen.get_height() - self.height) / 2
+		self.costumes = resource.get_tank_costumes(color)
 		self.dir = 'up'
 		self.wheel = 0
 		self.fire_time = None
+		self.is_stop = False
 
 		for costume in self.costumes.values():
-			costume[0] = pg.transform.scale(costume[0], (self.size, self.size))
-			costume[1] = pg.transform.scale(costume[1], (self.size, self.size))
+			costume[0] = pg.transform.scale(costume[0], self.size)
+			costume[1] = pg.transform.scale(costume[1], self.size)
 
 	def type(self):
 		return "TANK"
@@ -111,47 +152,53 @@ class Tank:
 		return False
 
 	def position(self):
-		return (self.pos_x, self.pos_y, self.size, self.size)
+		return (self.pos_x, self.pos_y, self.width, self.height)
 
 	def move_up(self):
+		if self.is_stop: return
 		self.dir = 'up'
 		self.pos_y -= Tank.SPEED
 		self.wheel = (self.wheel + 1) % 2
 		self.make_within_screen()
 
 	def move_left(self):
+		if self.is_stop: return
 		self.dir = 'left'
 		self.pos_x -= Tank.SPEED
 		self.wheel = (self.wheel + 1) % 2
 		self.make_within_screen()
 
 	def move_down(self):
+		if self.is_stop: return
 		self.dir = 'down'
 		self.pos_y += Tank.SPEED
 		self.wheel = (self.wheel + 1) % 2
 		self.make_within_screen()
 
 	def move_right(self):
+		if self.is_stop: return
 		self.dir = 'right'
 		self.pos_x += Tank.SPEED
 		self.wheel = (self.wheel + 1) % 2
 		self.make_within_screen()
 
 	def make_within_screen(self):
-		w = self.screen.get_width()
-		h = self.screen.get_height()
-		self.pos_x = max(0, min(w - self.size, self.pos_x))
-		self.pos_y = max(0, min(h - self.size, self.pos_y))
+		self.pos_x = max(0, min(self.screen.get_width() - self.width, self.pos_x))
+		self.pos_y = max(0, min(self.screen.get_height() - self.height, self.pos_y))
 
 	def draw(self):
 		self.screen.blit(self.costumes[self.dir][self.wheel], (self.pos_x, self.pos_y))
 
 	def fire(self):
+		if self.is_stop: return
 		now = pg.time.get_ticks()
 		if (self.fire_time == None or now - self.fire_time > 400):
 			self.fire_time = now
 			return Bullet(self.screen, self.resource, self.pos_x, self.pos_y, self.dir)
 		return None
+
+	def stop(self):
+		self.is_stop = not self.is_stop
 
 class Bullet:
 
@@ -167,18 +214,21 @@ class Bullet:
 		self.screen = screen
 		self.resource = resource
 		self.tank_size = resource.get_tank_size_scaled()
+		self.tank_width, self.tank_height = self.tank_size
 		self.size = resource.get_bullet_size_scaled(dir)
-		self.w, self.h = self.size
-		self.pos_x = x + (self.tank_size - self.w) / 2
-		self.pos_y = y + (self.tank_size - self.h) / 2
-		self.costumes = resource.get_bullet_costumes(dir)
+		self.width, self.height = self.size
+		self.pos_x = x + (self.tank_width - self.width) / 2
+		self.pos_y = y + (self.tank_height - self.height) / 2
+		self.costumes = resource.get_bullet_costumes()
+		self.boom_costumes = resource.get_boom_costumes()
 		self.speed = Bullet.SPEED_DICT[dir]
+		self.dir = dir
 
 		self.resource.play_fire_sound()
 		for key in self.costumes.keys():
-			if self.costumes[key] and key == 'original':
-				c = self.costumes[key]
-				self.costumes[key] = pg.transform.scale(c, self.size)
+			self.costumes[key] = pg.transform.scale(self.costumes[key], self.size)
+		for idx in range(len(self.boom_costumes)):
+			self.boom_costumes[idx] = pg.transform.scale(self.boom_costumes[idx], resource.get_boom_size_scaled(idx))
 
 		self.state = "original"
 
@@ -192,40 +242,46 @@ class Bullet:
 		return self.state == "booming"
 
 	def position(self):
-		return (self.pos_x, self.pos_y, self.w, self.h)
+		return (self.pos_x, self.pos_y, self.width, self.height)
 
 	def hit_tank(self):
-		self.resource.play_hit_tank_sound()
-		self.state = "finished"
+		if not self.finished() and not self.booming():
+			self.resource.play_hit_tank_sound()
+			self.boom(5)
 
 	def hit_wall(self):
-		self.resource.play_hit_wall_sound()
-		self.state = "finished"
+		if not self.finished() and not self.booming():
+			self.resource.play_hit_wall_sound()
+			self.boom(3)
 
 	def hit_nothing(self):
 		if not self.finished() and not self.booming():
 			self.resource.play_hit_nothing_sound()
-			self.boom(3)
+			self.boom(2)
 
-	def boom(self, boomStop):
+	def boom(self, boom_stop):
 		self.state = "booming"
-		self.boomCounter = 0
-		self.boomStop = boomStop
-		self.pos_x -= (self.tank_size - self.w) / 2
-		self.pos_y -= (self.tank_size - self.h) / 2
+		self.boom_counter = 0
+		self.boom_stop = boom_stop
+		self.pos_x -= (self.tank_width - self.width) / 2
+		self.pos_y -= (self.tank_height - self.height) / 2
 
 	def draw(self):
 		if self.state == "original":
 			dx, dy = self.speed
 			self.pos_x += dx
 			self.pos_y += dy
-			self.screen.blit(self.costumes[self.state], (self.pos_x, self.pos_y))
+			self.screen.blit(self.costumes[self.dir], (self.pos_x, self.pos_y))
+			if random.randint(0, 10) < 1:
+				self.dir = ['up', 'left', 'down', 'right'][random.randint(0, 3)]
+				self.speed = Bullet.SPEED_DICT[self.dir]
 		elif self.state == "booming":
-			pos_x = self.pos_x + (self.tank_size - self.resource.get_boom_size_scaled(int(self.boomCounter))) / 2
-			pos_y = self.pos_y + (self.tank_size - self.resource.get_boom_size_scaled(int(self.boomCounter))) / 2
-			self.screen.blit(self.costumes["booms"][int(self.boomCounter)], (pos_x, pos_y))
-			self.boomCounter += 0.1
-			if self.boomCounter >= self.boomStop:
+			bw, bh = self.resource.get_boom_size_scaled(int(self.boom_counter))
+			pos_x = self.pos_x + (self.tank_width - bw) / 2
+			pos_y = self.pos_y + (self.tank_height - bh) / 2
+			self.screen.blit(self.boom_costumes[int(self.boom_counter)], (pos_x, pos_y))
+			self.boom_counter += 0.1
+			if self.boom_counter >= self.boom_stop:
 				self.state = "finished"
 
 class Game:
@@ -240,8 +296,13 @@ class Game:
 		self.resource = Resource()
 
 		self.sprite_queue = []
+		self.tank_queue = []
 		self.my_tank = Tank(self.screen, self.resource)
+		self.your_tank = Tank(self.screen, self.resource, 'white')
 		self.sprite_queue.append(self.my_tank)
+		self.sprite_queue.append(self.your_tank)
+		self.tank_queue.append(self.my_tank)
+		self.tank_queue.append(self.your_tank)
 
 	def run(self):
 		screen_w, screen_h = self.screen.get_size()
@@ -265,6 +326,9 @@ class Game:
 						bullet = self.my_tank.fire()
 						if bullet:
 							self.sprite_queue.append(bullet)
+					elif event.key == pg.K_d:
+						for tank in self.tank_queue:
+							tank.stop()
 
 			for sprite in self.sprite_queue:
 				if sprite.type() == "BULLET":
