@@ -17,6 +17,8 @@ class Resource:
 		self.hit_tank_sound = pg.mixer.Sound('sounds/hit_tank.wav')
 		self.hit_wall_sound = pg.mixer.Sound('sounds/hit_wall.wav')
 		self.hit_nothing_sound = pg.mixer.Sound('sounds/hit_nothing.wav')
+		self.game_start_sound = pg.mixer.Sound('sounds/game_start.wav')
+		self.game_pause_sound = pg.mixer.Sound('sounds/game_pause.wav')
 
     #######################################################################################
     # tank size and costumes
@@ -110,6 +112,29 @@ class Resource:
 		return costumes
 
 	#######################################################################################
+	# text size and costumes
+	#######################################################################################
+	def get_text_size(self, text):
+		if (text == "pause"):
+			return (160, 32)
+		elif (text == "gameover"):
+			return (160, 64)
+		else:
+			raise Exception("text not supported: %s" % text)
+
+	def get_text_costume(self, text):
+		img = self.images.copy()
+		if (text == "pause" or text == "gameover"):
+			img.set_palette([pg.Color(0,0,0,255),pg.Color(101,0,134,255),pg.Color(189,56,36,255),pg.Color(255,255,255,255)])
+		w, h = self.get_text_size(text)
+		if (text == "pause"):
+			return img.subsurface(pg.Rect(352, 512, w, h))
+		elif (text == "gameover"):
+			return img.subsurface(pg.Rect(384, 768, w, h))
+		else:
+			raise Exception("text not supported: %s" % text)
+
+	#######################################################################################
 	# sounds
 	#######################################################################################
 	def play_fire_sound(self):
@@ -123,6 +148,51 @@ class Resource:
 
 	def play_hit_nothing_sound(self):
 		self.hit_nothing_sound.play()
+
+	def play_game_start(self):
+		self.game_start_sound.play()
+
+	def play_game_pause(self):
+		self.game_pause_sound.play()
+
+class Text:
+
+	def __init__(self, screen, resource, text, has_animation = False, hidden = True, x = 0, y = 0):
+		self.screen = screen
+		self.resource = resource
+		self.size = resource.get_text_size(text)
+		self.width, self.height = self.size
+		if (text == "pause"):
+			self.pos_x = (screen.get_width() - self.width) / 2
+			self.pos_y = (screen.get_height() - self.height) / 2
+		else:
+			self.pos_x, self.pos_y = x, y
+		self.costume = resource.get_text_costume(text)
+		self.has_animation = has_animation
+		self.animation_counter = 0
+		self.is_hidden = hidden
+
+	def type(self):
+		return "TEXT"
+
+	def finished(self):
+		return False
+
+	def position(self):
+		return (self.pos_x, self.pos_y, self.width, self.height)
+
+	def draw(self):
+		if self.has_animation:
+			self.animation_counter += 1
+		if (not self.is_hidden):
+			if (self.has_animation):
+				if (self.animation_counter % 80 < 40):
+					self.screen.blit(self.costume, (self.pos_x, self.pos_y))
+			else:
+				self.screen.blit(self.costume, (self.pos_x, self.pos_y))
+
+	def toggle_hidden(self):
+		self.is_hidden = not self.is_hidden
 
 class Tank:
 
@@ -197,7 +267,7 @@ class Tank:
 			return Bullet(self.screen, self.resource, self.pos_x, self.pos_y, self.dir)
 		return None
 
-	def stop(self):
+	def toggle_stop(self):
 		self.is_stop = not self.is_stop
 
 class Bullet:
@@ -290,13 +360,13 @@ class Game:
 		pg.mixer.pre_init(44100, -16, 1, 2048)
 		pg.mixer.init()
 		pg.init()
-		pg.key.set_repeat(30)
+		#pg.key.set_repeat(30)
 		self.clock = pg.time.Clock()
 		self.screen = pg.display.set_mode((800, 600))
 		self.resource = Resource()
-
 		self.sprite_queue = []
 		self.tank_queue = []
+
 		self.my_tank = Tank(self.screen, self.resource)
 		self.your_tank = Tank(self.screen, self.resource, 'white')
 		self.sprite_queue.append(self.my_tank)
@@ -304,31 +374,44 @@ class Game:
 		self.tank_queue.append(self.my_tank)
 		self.tank_queue.append(self.your_tank)
 
+		self.pause_message = Text(self.screen, self.resource, "pause", has_animation = True)
+		self.sprite_queue.append(self.pause_message)
+
 	def run(self):
+		self.resource.play_game_start()
 		screen_w, screen_h = self.screen.get_size()
 		while True:
-			self.clock.tick(100)
+			self.clock.tick(80)
+
+			key = pg.key.get_pressed()
+
+			if (key[pg.K_UP]): self.my_tank.move_up()
+			elif (key[pg.K_LEFT]): self.my_tank.move_left()
+			elif (key[pg.K_DOWN]): self.my_tank.move_down()
+			elif (key[pg.K_RIGHT]): self.my_tank.move_right()
+			if (key[pg.K_SPACE]):
+				bullet = self.my_tank.fire()
+				if bullet: self.sprite_queue.append(bullet)
+
+			if (key[pg.K_w]): self.your_tank.move_up()
+			elif (key[pg.K_a]): self.your_tank.move_left()
+			elif (key[pg.K_s]): self.your_tank.move_down()
+			elif (key[pg.K_d]): self.your_tank.move_right()
+			if (key[pg.K_e]):
+				bullet = self.your_tank.fire()
+				if bullet: self.sprite_queue.append(bullet)
+
 			for event in pg.event.get():
 				if event.type == pg.QUIT:
 					sys.exit()
 				elif event.type == pg.KEYDOWN:
 					if event.key == pg.K_ESCAPE:
 						sys.exit()
-					if event.key == pg.K_UP:
-						self.my_tank.move_up()
-					elif event.key == pg.K_LEFT:
-						self.my_tank.move_left()
-					elif event.key == pg.K_DOWN:
-						self.my_tank.move_down()
-					elif event.key == pg.K_RIGHT:
-						self.my_tank.move_right()
-					elif event.key == pg.K_SPACE:
-						bullet = self.my_tank.fire()
-						if bullet:
-							self.sprite_queue.append(bullet)
-					elif event.key == pg.K_d:
+					elif event.key == pg.K_p:
+						self.resource.play_game_pause()
+						self.pause_message.toggle_hidden()
 						for tank in self.tank_queue:
-							tank.stop()
+							tank.toggle_stop()
 
 			for sprite in self.sprite_queue:
 				if sprite.type() == "BULLET":
