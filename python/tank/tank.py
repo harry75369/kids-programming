@@ -388,15 +388,31 @@ class Bullet:
 		self.pos_x -= (self.tank_width - self.width) / 2
 		self.pos_y -= (self.tank_height - self.height) / 2
 
+	def collide(self, new_x, new_y):
+		reverted = False
+		old_bbox = pg.Rect(self.pos_x, self.pos_y, self.width, self.height)
+		new_bbox = pg.Rect(new_x, new_y, self.width, self.height)
+		for sprite in self.sprites:
+			if (self != sprite and sprite.type() == "TANK"):
+				sx, sy, sw, sh = sprite.position()
+				s_bbox = pg.Rect(sx, sy, sw, sh)
+				#if (not old_bbox.colliderect(s_bbox) and new_bbox.colliderect(s_bbox)):
+				if (not my_colliderect(old_bbox, s_bbox) and my_colliderect(new_bbox, s_bbox)):
+					new_x, new_y = self.pos_x, self.pos_y
+					reverted = True
+					break
+		return reverted, new_x, new_y
+
 	def draw(self):
 		if self.state == "original":
 			dx, dy = self.speed
-			self.pos_x += dx
-			self.pos_y += dy
+			reverted, self.pos_x, self.pos_y = self.collide(self.pos_x + dx, self.pos_y + dy)
+			if reverted:
+				self.hit_tank()
 			self.screen.blit(self.costumes[self.dir], (self.pos_x, self.pos_y))
-			if random.randint(0, 10) < 1:
-				self.dir = ['up', 'left', 'down', 'right'][random.randint(0, 3)]
-				self.speed = Bullet.SPEED_DICT[self.dir]
+			#if random.randint(0, 10) < 1:
+			#	self.dir = ['up', 'left', 'down', 'right'][random.randint(0, 3)]
+			#	self.speed = Bullet.SPEED_DICT[self.dir]
 		elif self.state == "booming":
 			bw, bh = self.resource.get_boom_size_scaled(int(self.boom_counter))
 			pos_x = self.pos_x + (self.tank_width - bw) / 2
