@@ -18,7 +18,7 @@ class Resource:
 		self.fire_sound = pg.mixer.Sound('sounds/fire.wav')
 		self.hit_tank_sound = pg.mixer.Sound('sounds/hit_tank.wav')
 		self.hit_wall_sound = pg.mixer.Sound('sounds/hit_wall.wav')
-		self.hit_nothing_sound = pg.mixer.Sound('sounds/hit_nothing.wav')
+		self.hit_bullet_sound = pg.mixer.Sound('sounds/hit_bullet.wav')
 		self.game_start_sound = pg.mixer.Sound('sounds/game_start.wav')
 		self.game_pause_sound = pg.mixer.Sound('sounds/game_pause.wav')
 
@@ -148,8 +148,8 @@ class Resource:
 	def play_hit_wall_sound(self):
 		self.hit_wall_sound.play()
 
-	def play_hit_nothing_sound(self):
-		self.hit_nothing_sound.play()
+	def play_hit_bullet_sound(self):
+		self.hit_bullet_sound.play()
 
 	def play_game_start(self):
 		self.game_start_sound.play()
@@ -223,10 +223,14 @@ class Tank:
 		self.wheel = 0
 		self.fire_time = None
 		self.is_stop = False
+		self.boom_costumes = resource.get_boom_costumes()
+		self.state = "original"
 
 		for costume in self.costumes.values():
 			costume[0] = pg.transform.scale(costume[0], self.size)
 			costume[1] = pg.transform.scale(costume[1], self.size)
+		for idx in range(len(self.boom_costumes)):
+			self.boom_costumes[idx] = pg.transform.scale(self.boom_costumes[idx], resource.get_boom_size_scaled(idx))
 
 		if DEBUG:
 			for costume in self.costumes.values():
@@ -239,7 +243,10 @@ class Tank:
 		return "TANK"
 
 	def finished(self):
-		return False
+		return self.state == "finished"
+
+	def booming(self):
+		return self.state == "booming"
 
 	def position(self):
 		return (self.pos_x, self.pos_y, self.width, self.height)
@@ -249,7 +256,7 @@ class Tank:
 		old_bbox = pg.Rect(self.pos_x, self.pos_y, self.width, self.height)
 		new_bbox = pg.Rect(new_x, new_y, self.width, self.height)
 		for sprite in self.sprites:
-			if (self != sprite and sprite.type() == "TANK"):
+			if (self != sprite and sprite.type() == "TANK" and not sprite.finished() and not sprite.booming()):
 				sx, sy, sw, sh = sprite.position()
 				s_bbox = pg.Rect(sx, sy, sw, sh)
 				#if (not old_bbox.colliderect(s_bbox) and new_bbox.colliderect(s_bbox)):
@@ -261,6 +268,7 @@ class Tank:
 
 	def move_up(self):
 		if self.is_stop: return
+		if self.booming() or self.finished(): return
 		self.dir = 'up'
 		distance = Tank.SPEED
 		reverted, self.pos_x, self.pos_y = self.collide(self.pos_x, self.pos_y - distance)
@@ -272,6 +280,7 @@ class Tank:
 
 	def move_left(self):
 		if self.is_stop: return
+		if self.booming() or self.finished(): return
 		self.dir = 'left'
 		distance = Tank.SPEED
 		reverted, self.pos_x, self.pos_y = self.collide(self.pos_x - distance, self.pos_y)
@@ -283,6 +292,7 @@ class Tank:
 
 	def move_down(self):
 		if self.is_stop: return
+		if self.booming() or self.finished(): return
 		self.dir = 'down'
 		distance = Tank.SPEED
 		reverted, self.pos_x, self.pos_y = self.collide(self.pos_x, self.pos_y + distance)
@@ -294,6 +304,7 @@ class Tank:
 
 	def move_right(self):
 		if self.is_stop: return
+		if self.booming() or self.finished(): return
 		self.dir = 'right'
 		distance = Tank.SPEED
 		reverted, self.pos_x, self.pos_y = self.collide(self.pos_x + distance, self.pos_y)
@@ -308,7 +319,16 @@ class Tank:
 		self.pos_y = max(0, min(self.screen.get_height() - self.height, self.pos_y))
 
 	def draw(self):
-		self.screen.blit(self.costumes[self.dir][self.wheel], (self.pos_x, self.pos_y))
+		if self.state == "original":
+			self.screen.blit(self.costumes[self.dir][self.wheel], (self.pos_x, self.pos_y))
+		elif self.state == "booming":
+			bw, bh = self.resource.get_boom_size_scaled(int(self.boom_counter))
+			pos_x = self.pos_x + (self.width - bw) / 2
+			pos_y = self.pos_y + (self.height - bh) / 2
+			self.screen.blit(self.boom_costumes[int(self.boom_counter)], (pos_x, pos_y))
+			self.boom_counter += 0.1
+			if self.boom_counter >= self.boom_stop:
+				self.state = "finished"
 
 	def fire(self):
 		if self.is_stop: return
@@ -320,6 +340,13 @@ class Tank:
 
 	def toggle_stop(self):
 		self.is_stop = not self.is_stop
+
+	def got_hit(self):
+		if not self.finished() and not self.booming():
+			self.resource.play_hit_tank_sound()
+			self.state = "booming"
+			self.boom_counter = 2
+			self.boom_stop = 5
 
 class Bullet:
 
@@ -365,22 +392,12 @@ class Bullet:
 
 	def position(self):
 		return (self.pos_x, self.pos_y, self.width, self.height)
-
-	def hit_tank(self):
+			
+	def hit_bullet(self):
 		if not self.finished() and not self.booming():
-			self.resource.play_hit_tank_sound()
-			self.boom(5)
-
-	def hit_wall(self):
-		if not self.finished() and not self.booming():
-			self.resource.play_hit_wall_sound()
-			self.boom(3)
-
-	def hit_nothing(self):
-		if not self.finished() and not self.booming():
-			self.resource.play_hit_nothing_sound()
+			self.resource.play_hit_bullet_sound()
 			self.boom(2)
-
+			
 	def boom(self, boom_stop):
 		self.state = "booming"
 		self.boom_counter = 0
@@ -389,26 +406,27 @@ class Bullet:
 		self.pos_y -= (self.tank_height - self.height) / 2
 
 	def collide(self, new_x, new_y):
-		reverted = False
+		target = None
 		old_bbox = pg.Rect(self.pos_x, self.pos_y, self.width, self.height)
 		new_bbox = pg.Rect(new_x, new_y, self.width, self.height)
 		for sprite in self.sprites:
-			if (self != sprite and sprite.type() == "TANK"):
+			if (self != sprite and sprite.type() == "TANK" and not sprite.finished() and not sprite.booming()):
 				sx, sy, sw, sh = sprite.position()
 				s_bbox = pg.Rect(sx, sy, sw, sh)
 				#if (not old_bbox.colliderect(s_bbox) and new_bbox.colliderect(s_bbox)):
 				if (not my_colliderect(old_bbox, s_bbox) and my_colliderect(new_bbox, s_bbox)):
 					new_x, new_y = self.pos_x, self.pos_y
-					reverted = True
+					target = sprite
 					break
-		return reverted, new_x, new_y
+		return target, new_x, new_y
 
 	def draw(self):
 		if self.state == "original":
 			dx, dy = self.speed
-			reverted, self.pos_x, self.pos_y = self.collide(self.pos_x + dx, self.pos_y + dy)
-			if reverted:
-				self.hit_tank()
+			target, self.pos_x, self.pos_y = self.collide(self.pos_x + dx, self.pos_y + dy)
+			if target:
+				self.hit_bullet()
+				target.got_hit()
 			self.screen.blit(self.costumes[self.dir], (self.pos_x, self.pos_y))
 			#if random.randint(0, 10) < 1:
 			#	self.dir = ['up', 'left', 'down', 'right'][random.randint(0, 3)]
@@ -453,15 +471,17 @@ class Game:
 
 			key = pg.key.get_pressed()
 
-			if key[pg.K_UP]: self.my_tank.move_up()
-			elif key[pg.K_LEFT]: self.my_tank.move_left()
-			elif key[pg.K_DOWN]: self.my_tank.move_down()
-			elif key[pg.K_RIGHT]: self.my_tank.move_right()
+			if self.my_tank in self.sprite_queue:
+				if key[pg.K_UP]: self.my_tank.move_up()
+				elif key[pg.K_LEFT]: self.my_tank.move_left()
+				elif key[pg.K_DOWN]: self.my_tank.move_down()
+				elif key[pg.K_RIGHT]: self.my_tank.move_right()
 
-			if key[pg.K_w]: self.your_tank.move_up()
-			elif key[pg.K_a]: self.your_tank.move_left()
-			elif key[pg.K_s]: self.your_tank.move_down()
-			elif key[pg.K_d]: self.your_tank.move_right()
+			if self.your_tank in self.sprite_queue:
+				if key[pg.K_w]: self.your_tank.move_up()
+				elif key[pg.K_a]: self.your_tank.move_left()
+				elif key[pg.K_s]: self.your_tank.move_down()
+				elif key[pg.K_d]: self.your_tank.move_right()
 
 			for event in pg.event.get():
 				if event.type == pg.QUIT:
@@ -469,10 +489,10 @@ class Game:
 				elif event.type == pg.KEYDOWN:
 					if event.key == pg.K_ESCAPE:
 						sys.exit()
-					elif event.key == pg.K_SPACE:
+					elif event.key == pg.K_SPACE and self.my_tank in self.sprite_queue:
 						bullet = self.my_tank.fire()
 						if bullet: self.sprite_queue.append(bullet)
-					elif event.key == pg.K_e:
+					elif event.key == pg.K_e and self.your_tank in self.sprite_queue:
 						bullet = self.your_tank.fire()
 						if bullet: self.sprite_queue.append(bullet)
 					elif event.key == pg.K_p:
@@ -485,9 +505,14 @@ class Game:
 				if sprite.type() == "BULLET":
 					x, y, w, h = sprite.position()
 					if (x < 0) or (x + w > screen_w) or (y < 0) or (y + h > screen_h):
-						sprite.hit_nothing()
+						sprite.hit_bullet()
 
-			self.sprite_queue = [s for s in self.sprite_queue if not s.finished()]
+			sIdx = 0
+			while sIdx < len(self.sprite_queue):
+				if self.sprite_queue[sIdx].finished():
+					del self.sprite_queue[sIdx]
+				else: sIdx += 1
+			#self.sprite_queue = [s for s in self.sprite_queue if not s.finished()]
 
 			self.screen.fill(pg.Color("black"))
 			for sprite in self.sprite_queue:
