@@ -12,14 +12,14 @@ colorPalletes = {
 class NESRom:
 
     def __init__(self, fileName, pallete):
-        blob = open(fileName).read()
+        blob = open(fileName, 'rb').read()
         self.szHeader = 16
-        self.nPRG = ord(blob[4])
-        self.nCHR = ord(blob[5])
+        self.nPRG = blob[4]
+        self.nCHR = blob[5]
         self.szPRG = 16384
         self.szCHR = 8192
         self.nSpritePerCHR = 512
-        self.szSprite = self.szCHR / self.nSpritePerCHR
+        self.szSprite = self.szCHR // self.nSpritePerCHR
         self.szTile = 8
         self.scale = 4
         self.PRGs = [blob[self.szHeader:][(i*self.szPRG):((i+1)*self.szPRG)] for i in range(self.nPRG)]
@@ -29,17 +29,17 @@ class NESRom:
     def makeTileMatrix(self, channel):
         matrix = []
         for rowByte in channel:
-            binString = bin(ord(rowByte))[2:]
+            binString = bin(rowByte)[2:]
             l = len(binString)
             binString = '0' * (8-l) + binString
-            matrix.append(map(int, binString))
+            matrix.append(list(map(int, binString)))
         return matrix
 
     def makeSpriteImage(self, blob):
         img = Image.new('RGB', (self.szTile, self.szTile))
         pixels = img.load()
-        channelA = self.makeTileMatrix(blob[0:self.szSprite/2])
-        channelB = self.makeTileMatrix(blob[self.szSprite/2:self.szSprite])
+        channelA = self.makeTileMatrix(blob[0:self.szSprite//2])
+        channelB = self.makeTileMatrix(blob[self.szSprite//2:self.szSprite])
         for i in range(self.szTile):
             for j in range(self.szTile):
                 colorIdx = channelA[i][j] + 2*channelB[i][j]
@@ -58,7 +58,7 @@ class NESRom:
         _combined = []
         sprites = self.sprites()
         sz = self.szTile * self.scale
-        for i in range(len(sprites)/4):
+        for i in range(len(sprites)//4):
             c = Image.new('RGB', (sz*2, sz*2))
             c.paste(sprites[i*4], (0, 0))
             c.paste(sprites[i*4+1], (0, sz))
@@ -70,7 +70,7 @@ class NESRom:
     def allSprites(self):
         sprites = self.combinedSprites()
         nSpritePerRow = 8
-        nRow = len(sprites) / nSpritePerRow
+        nRow = len(sprites) // nSpritePerRow
         sz = self.szTile * self.scale * 2
         allS = Image.new('RGB', (sz*nSpritePerRow, sz*nRow))
         for i in range(nRow):
