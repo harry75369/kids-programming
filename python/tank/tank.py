@@ -2,6 +2,8 @@ import sys
 import pygame as pg
 import random
 
+DEBUG = True
+
 class Resource:
 
 	@staticmethod
@@ -198,9 +200,10 @@ class Tank:
 
 	SPEED = 5
 
-	def __init__(self, screen, resource, color = 'yellow'):
+	def __init__(self, screen, resource, sprites, color = 'yellow'):
 		self.screen = screen
 		self.resource = resource
+		self.sprites = sprites
 		self.size = resource.get_tank_size_scaled()
 		self.width, self.height = self.size
 		self.pos_x = (screen.get_width() - self.width) / 2
@@ -215,6 +218,13 @@ class Tank:
 			costume[0] = pg.transform.scale(costume[0], self.size)
 			costume[1] = pg.transform.scale(costume[1], self.size)
 
+		if DEBUG:
+			for costume in self.costumes.values():
+				costume[0] = costume[0].convert(24)
+				costume[1] = costume[1].convert(24)
+				pg.draw.rect(costume[0], pg.Color('red'), pg.Rect(0, 0, self.width, self.height), 1)
+				pg.draw.rect(costume[1], pg.Color('red'), pg.Rect(0, 0, self.width, self.height), 1)
+
 	def type(self):
 		return "TANK"
 
@@ -224,31 +234,43 @@ class Tank:
 	def position(self):
 		return (self.pos_x, self.pos_y, self.width, self.height)
 
+	def collide(self, new_x, new_y):
+		old_bbox = pg.Rect(self.pos_x, self.pos_y, self.width, self.height)
+		new_bbox = pg.Rect(new_x, new_y, self.width, self.height)
+		for sprite in self.sprites:
+			if (self != sprite and sprite.type() == "TANK"):
+				sx, sy, sw, sh = sprite.position()
+				s_bbox = pg.Rect(sx, sy, sw, sh)
+				if (not old_bbox.colliderect(s_bbox) and new_bbox.colliderect(s_bbox)):
+					new_x, new_y = self.pos_x, self.pos_y
+					break
+		return new_x, new_y
+
 	def move_up(self):
 		if self.is_stop: return
 		self.dir = 'up'
-		self.pos_y -= Tank.SPEED
+		self.pos_x, self.pos_y = self.collide(self.pos_x, self.pos_y - Tank.SPEED)
 		self.wheel = (self.wheel + 1) % 2
 		self.make_within_screen()
 
 	def move_left(self):
 		if self.is_stop: return
 		self.dir = 'left'
-		self.pos_x -= Tank.SPEED
+		self.pos_x, self.pos_y = self.collide(self.pos_x - Tank.SPEED, self.pos_y)
 		self.wheel = (self.wheel + 1) % 2
 		self.make_within_screen()
 
 	def move_down(self):
 		if self.is_stop: return
 		self.dir = 'down'
-		self.pos_y += Tank.SPEED
+		self.pos_x, self.pos_y = self.collide(self.pos_x, self.pos_y + Tank.SPEED)
 		self.wheel = (self.wheel + 1) % 2
 		self.make_within_screen()
 
 	def move_right(self):
 		if self.is_stop: return
 		self.dir = 'right'
-		self.pos_x += Tank.SPEED
+		self.pos_x, self.pos_y = self.collide(self.pos_x + Tank.SPEED, self.pos_y)
 		self.wheel = (self.wheel + 1) % 2
 		self.make_within_screen()
 
@@ -264,7 +286,7 @@ class Tank:
 		now = pg.time.get_ticks()
 		if (self.fire_time == None or now - self.fire_time > 300):
 			self.fire_time = now
-			return Bullet(self.screen, self.resource, self.pos_x, self.pos_y, self.dir)
+			return Bullet(self.screen, self.resource, self.sprites, self.pos_x, self.pos_y, self.dir)
 		return None
 
 	def toggle_stop(self):
@@ -280,9 +302,10 @@ class Bullet:
 		'right': (SPEED, 0)
 	}
 	
-	def __init__(self, screen, resource, x, y, dir):
+	def __init__(self, screen, resource, sprites, x, y, dir):
 		self.screen = screen
 		self.resource = resource
+		self.sprites = sprites
 		self.tank_size = resource.get_tank_size_scaled()
 		self.tank_width, self.tank_height = self.tank_size
 		self.size = resource.get_bullet_size_scaled(dir)
@@ -367,8 +390,8 @@ class Game:
 		self.sprite_queue = []
 		self.tank_queue = []
 
-		self.my_tank = Tank(self.screen, self.resource)
-		self.your_tank = Tank(self.screen, self.resource, 'white')
+		self.my_tank = Tank(self.screen, self.resource, self.sprite_queue)
+		self.your_tank = Tank(self.screen, self.resource, self.sprite_queue, 'white')
 		self.sprite_queue.append(self.my_tank)
 		self.sprite_queue.append(self.your_tank)
 		self.tank_queue.append(self.my_tank)
