@@ -196,6 +196,16 @@ class Text:
 	def toggle_hidden(self):
 		self.is_hidden = not self.is_hidden
 
+
+def my_colliderect(bbox_a, bbox_b):
+	ax, ay, aw, ah = bbox_a.x, bbox_a.y, bbox_a.width, bbox_a.height
+	bx, by, bw, bh = bbox_b.x, bbox_b.y, bbox_b.width, bbox_b.height
+
+	if ax + aw > bx and ay + ah > by and ax < bx + bw and  ay < by + bh:
+		return True
+
+	return False
+
 class Tank:
 
 	SPEED = 5
@@ -241,7 +251,8 @@ class Tank:
 			if (self != sprite and sprite.type() == "TANK"):
 				sx, sy, sw, sh = sprite.position()
 				s_bbox = pg.Rect(sx, sy, sw, sh)
-				if (not old_bbox.colliderect(s_bbox) and new_bbox.colliderect(s_bbox)):
+				#if (not old_bbox.colliderect(s_bbox) and new_bbox.colliderect(s_bbox)):
+				if (not my_colliderect(old_bbox, s_bbox) and my_colliderect(new_bbox, s_bbox)):
 					new_x, new_y = self.pos_x, self.pos_y
 					break
 		return new_x, new_y
@@ -408,21 +419,15 @@ class Game:
 
 			key = pg.key.get_pressed()
 
-			if (key[pg.K_UP]): self.my_tank.move_up()
-			elif (key[pg.K_LEFT]): self.my_tank.move_left()
-			elif (key[pg.K_DOWN]): self.my_tank.move_down()
-			elif (key[pg.K_RIGHT]): self.my_tank.move_right()
-			if (key[pg.K_SPACE]):
-				bullet = self.my_tank.fire()
-				if bullet: self.sprite_queue.append(bullet)
+			if key[pg.K_UP]: self.my_tank.move_up()
+			elif key[pg.K_LEFT]: self.my_tank.move_left()
+			elif key[pg.K_DOWN]: self.my_tank.move_down()
+			elif key[pg.K_RIGHT]: self.my_tank.move_right()
 
-			if (key[pg.K_w]): self.your_tank.move_up()
-			elif (key[pg.K_a]): self.your_tank.move_left()
-			elif (key[pg.K_s]): self.your_tank.move_down()
-			elif (key[pg.K_d]): self.your_tank.move_right()
-			if (key[pg.K_e]):
-				bullet = self.your_tank.fire()
-				if bullet: self.sprite_queue.append(bullet)
+			if key[pg.K_w]: self.your_tank.move_up()
+			elif key[pg.K_a]: self.your_tank.move_left()
+			elif key[pg.K_s]: self.your_tank.move_down()
+			elif key[pg.K_d]: self.your_tank.move_right()
 
 			for event in pg.event.get():
 				if event.type == pg.QUIT:
@@ -430,6 +435,12 @@ class Game:
 				elif event.type == pg.KEYDOWN:
 					if event.key == pg.K_ESCAPE:
 						sys.exit()
+					elif event.key == pg.K_SPACE:
+						bullet = self.my_tank.fire()
+						if bullet: self.sprite_queue.append(bullet)
+					elif event.key == pg.K_e:
+						bullet = self.your_tank.fire()
+						if bullet: self.sprite_queue.append(bullet)
 					elif event.key == pg.K_p:
 						self.resource.play_game_pause()
 						self.pause_message.toggle_hidden()
