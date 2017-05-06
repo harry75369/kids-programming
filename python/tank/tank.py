@@ -208,7 +208,7 @@ def my_colliderect(bbox_a, bbox_b):
 
 class Tank:
 
-	SPEED = 5
+	SPEED = 10
 
 	def __init__(self, screen, resource, sprites, color = 'yellow'):
 		self.screen = screen
@@ -245,6 +245,7 @@ class Tank:
 		return (self.pos_x, self.pos_y, self.width, self.height)
 
 	def collide(self, new_x, new_y):
+		reverted = False
 		old_bbox = pg.Rect(self.pos_x, self.pos_y, self.width, self.height)
 		new_bbox = pg.Rect(new_x, new_y, self.width, self.height)
 		for sprite in self.sprites:
@@ -254,34 +255,51 @@ class Tank:
 				#if (not old_bbox.colliderect(s_bbox) and new_bbox.colliderect(s_bbox)):
 				if (not my_colliderect(old_bbox, s_bbox) and my_colliderect(new_bbox, s_bbox)):
 					new_x, new_y = self.pos_x, self.pos_y
+					reverted = True
 					break
-		return new_x, new_y
+		return reverted, new_x, new_y
 
 	def move_up(self):
 		if self.is_stop: return
 		self.dir = 'up'
-		self.pos_x, self.pos_y = self.collide(self.pos_x, self.pos_y - Tank.SPEED)
+		distance = Tank.SPEED
+		reverted, self.pos_x, self.pos_y = self.collide(self.pos_x, self.pos_y - distance)
+		while reverted:
+			distance /= 2
+			reverted, self.pos_x, self.pos_y = self.collide(self.pos_x, self.pos_y - distance)
 		self.wheel = (self.wheel + 1) % 2
 		self.make_within_screen()
 
 	def move_left(self):
 		if self.is_stop: return
 		self.dir = 'left'
-		self.pos_x, self.pos_y = self.collide(self.pos_x - Tank.SPEED, self.pos_y)
+		distance = Tank.SPEED
+		reverted, self.pos_x, self.pos_y = self.collide(self.pos_x - distance, self.pos_y)
+		while reverted:
+			distance /= 2
+			reverted, self.pos_x, self.pos_y = self.collide(self.pos_x - distance, self.pos_y)
 		self.wheel = (self.wheel + 1) % 2
 		self.make_within_screen()
 
 	def move_down(self):
 		if self.is_stop: return
 		self.dir = 'down'
-		self.pos_x, self.pos_y = self.collide(self.pos_x, self.pos_y + Tank.SPEED)
+		distance = Tank.SPEED
+		reverted, self.pos_x, self.pos_y = self.collide(self.pos_x, self.pos_y + distance)
+		while reverted:
+			distance /= 2
+			reverted, self.pos_x, self.pos_y = self.collide(self.pos_x, self.pos_y + distance)
 		self.wheel = (self.wheel + 1) % 2
 		self.make_within_screen()
 
 	def move_right(self):
 		if self.is_stop: return
 		self.dir = 'right'
-		self.pos_x, self.pos_y = self.collide(self.pos_x + Tank.SPEED, self.pos_y)
+		distance = Tank.SPEED
+		reverted, self.pos_x, self.pos_y = self.collide(self.pos_x + distance, self.pos_y)
+		while reverted:
+			distance /= 2
+			reverted, self.pos_x, self.pos_y = self.collide(self.pos_x + distance, self.pos_y)
 		self.wheel = (self.wheel + 1) % 2
 		self.make_within_screen()
 
