@@ -1,8 +1,9 @@
 import sys
 import pygame as pg
 import random
+import math
 
-DEBUG = True
+DEBUG = False
 
 class Resource:
 
@@ -58,27 +59,29 @@ class Resource:
 	#######################################################################################
 	# bullet size and costumes
 	#######################################################################################
-	def get_bullet_size(self, dir):
-		size_dict = {
+	def get_bullet_sizes(self):
+		return {
 			'up': (12, 16),
 			'left': (16, 12),
 			'down': (12, 16),
 			'right': (16, 12)
 		}
-		return size_dict[dir]
 
-	def get_bullet_size_scaled(self, dir):
-		return Resource.scale(self.get_bullet_size(dir))
+	def get_bullet_sizes_scaled(self):
+		sizes = self.get_bullet_sizes()
+		for key in sizes.keys():
+			sizes[key] = Resource.scale(sizes[key])
+		return sizes
 
 	def get_bullet_costumes(self):
 		img = self.images.copy()
 		img.set_palette_at(2, pg.Color(182,182,182,255))
-		w, h = self.get_bullet_size('up')
+		sizes = self.get_bullet_sizes()
 		costumes = {
-			'up': img.subsurface(pg.Rect(268, 856, w, h)),
-			'left': img.subsurface(pg.Rect(296, 856, h, w)),
-			'down': img.subsurface(pg.Rect(332, 856, w, h)),
-			'right': img.subsurface(pg.Rect(360, 856, h, w))
+			'up': img.subsurface(pg.Rect(268, 856, sizes['up'][0], sizes['up'][1])),
+			'left': img.subsurface(pg.Rect(296, 856, sizes['left'][0], sizes['left'][1])),
+			'down': img.subsurface(pg.Rect(332, 856, sizes['down'][0], sizes['down'][1])),
+			'right': img.subsurface(pg.Rect(360, 856, sizes['right'][0], sizes['right'][1])),
 		}
 		return costumes
 
@@ -183,6 +186,10 @@ class Text:
 	def position(self):
 		return (self.pos_x, self.pos_y, self.width, self.height)
 
+	def center(self):
+		x, y, w, h = self.position()
+		return (x + w / 2, y + h / 2)
+
 	def draw(self):
 		if self.has_animation:
 			self.animation_counter += 1
@@ -196,6 +203,9 @@ class Text:
 	def toggle_hidden(self):
 		self.is_hidden = not self.is_hidden
 
+	def toggle_stop(self):
+		pass
+
 
 def my_colliderect(bbox_a, bbox_b):
 	ax, ay, aw, ah = bbox_a.x, bbox_a.y, bbox_a.width, bbox_a.height
@@ -206,9 +216,14 @@ def my_colliderect(bbox_a, bbox_b):
 
 	return False
 
+def normalize(x):
+	ax = math.fabs(x)
+	if ax == 0: return 0
+	return x / ax
+
 class Tank:
 
-	SPEED = 10
+	SPEED = 5
 
 	def __init__(self, screen, resource, sprites, color = 'yellow'):
 		self.screen = screen
@@ -225,6 +240,8 @@ class Tank:
 		self.is_stop = False
 		self.boom_costumes = resource.get_boom_costumes()
 		self.state = "original"
+		self.enemy = None
+		self.bullets = []
 
 		for costume in self.costumes.values():
 			costume[0] = pg.transform.scale(costume[0], self.size)
@@ -239,6 +256,16 @@ class Tank:
 				pg.draw.rect(costume[0], pg.Color('red'), pg.Rect(0, 0, self.width, self.height), 1)
 				pg.draw.rect(costume[1], pg.Color('red'), pg.Rect(0, 0, self.width, self.height), 1)
 
+	def set_enemy(self, enemy):
+		self.enemy = enemy
+		sIdx = 0
+		while sIdx < len(self.bullets):
+			if self.bullets[sIdx].finished():
+				del self.bullets[sIdx]
+			else:
+				self.bullets[sIdx].set_target(enemy)
+				sIdx += 1
+
 	def type(self):
 		return "TANK"
 
@@ -250,6 +277,10 @@ class Tank:
 
 	def position(self):
 		return (self.pos_x, self.pos_y, self.width, self.height)
+
+	def center(self):
+		x, y, w, h = self.position()
+		return (x + w / 2, y + h / 2)
 
 	def collide(self, new_x, new_y):
 		reverted = False
@@ -326,7 +357,8 @@ class Tank:
 			pos_x = self.pos_x + (self.width - bw) / 2
 			pos_y = self.pos_y + (self.height - bh) / 2
 			self.screen.blit(self.boom_costumes[int(self.boom_counter)], (pos_x, pos_y))
-			self.boom_counter += 0.1
+			if not self.is_stop:
+				self.boom_counter += 0.1
 			if self.boom_counter >= self.boom_stop:
 				self.state = "finished"
 
@@ -335,7 +367,10 @@ class Tank:
 		now = pg.time.get_ticks()
 		if (self.fire_time == None or now - self.fire_time > 300):
 			self.fire_time = now
-			return Bullet(self.screen, self.resource, self.sprites, self.pos_x, self.pos_y, self.dir)
+			bullet = Bullet(self.screen, self.resource, self, self.sprites, self.pos_x, self.pos_y, self.dir)
+			bullet.set_target(self.enemy)
+			self.bullets.append(bullet)
+			return bullet
 		return None
 
 	def toggle_stop(self):
@@ -350,7 +385,7 @@ class Tank:
 
 class Bullet:
 
-	SPEED = 20
+	SPEED = 1
 	SPEED_DICT = {
 		'up': (0, -SPEED),
 		'left': (-SPEED, 0),
@@ -358,24 +393,27 @@ class Bullet:
 		'right': (SPEED, 0)
 	}
 	
-	def __init__(self, screen, resource, sprites, x, y, dir):
+	def __init__(self, screen, resource, father, sprites, x, y, dir):
 		self.screen = screen
 		self.resource = resource
+		self.father = father
 		self.sprites = sprites
 		self.tank_size = resource.get_tank_size_scaled()
 		self.tank_width, self.tank_height = self.tank_size
-		self.size = resource.get_bullet_size_scaled(dir)
-		self.width, self.height = self.size
-		self.pos_x = x + (self.tank_width - self.width) / 2
-		self.pos_y = y + (self.tank_height - self.height) / 2
+		self.sizes = resource.get_bullet_sizes_scaled()
+		w, h = self.sizes[dir]
+		self.pos_x = x + (self.tank_width - w) / 2
+		self.pos_y = y + (self.tank_height - h) / 2
 		self.costumes = resource.get_bullet_costumes()
 		self.boom_costumes = resource.get_boom_costumes()
 		self.speed = Bullet.SPEED_DICT[dir]
 		self.dir = dir
+		self.target = None
+		self.is_stop = False
 
 		self.resource.play_fire_sound()
 		for key in self.costumes.keys():
-			self.costumes[key] = pg.transform.scale(self.costumes[key], self.size)
+			self.costumes[key] = pg.transform.scale(self.costumes[key], self.sizes[key])
 		for idx in range(len(self.boom_costumes)):
 			self.boom_costumes[idx] = pg.transform.scale(self.boom_costumes[idx], resource.get_boom_size_scaled(idx))
 
@@ -391,7 +429,12 @@ class Bullet:
 		return self.state == "booming"
 
 	def position(self):
-		return (self.pos_x, self.pos_y, self.width, self.height)
+		w, h = self.sizes[self.dir]
+		return (self.pos_x, self.pos_y, w, h)
+
+	def center(self):
+		x, y, w, h = self.position()
+		return (x + w / 2, y + h / 2)
 			
 	def hit_bullet(self):
 		if not self.finished() and not self.booming():
@@ -402,43 +445,76 @@ class Bullet:
 		self.state = "booming"
 		self.boom_counter = 0
 		self.boom_stop = boom_stop
-		self.pos_x -= (self.tank_width - self.width) / 2
-		self.pos_y -= (self.tank_height - self.height) / 2
+		w, h = self.sizes[self.dir]
+		self.pos_x -= (self.tank_width - w) / 2
+		self.pos_y -= (self.tank_height - h) / 2
+
+	def set_target(self, target):
+		self.target = target
 
 	def collide(self, new_x, new_y):
 		target = None
-		old_bbox = pg.Rect(self.pos_x, self.pos_y, self.width, self.height)
-		new_bbox = pg.Rect(new_x, new_y, self.width, self.height)
+		x, y, w, h = self.position()
+		old_bbox = pg.Rect(x, y, w, h)
+		new_bbox = pg.Rect(new_x, new_y, w, h)
 		for sprite in self.sprites:
-			if (self != sprite and sprite.type() == "TANK" and not sprite.finished() and not sprite.booming()):
+			if (self != sprite and self.father != sprite and sprite.type() != "TEXT" and not sprite.finished() and not sprite.booming()):
 				sx, sy, sw, sh = sprite.position()
 				s_bbox = pg.Rect(sx, sy, sw, sh)
 				#if (not old_bbox.colliderect(s_bbox) and new_bbox.colliderect(s_bbox)):
 				if (not my_colliderect(old_bbox, s_bbox) and my_colliderect(new_bbox, s_bbox)):
-					new_x, new_y = self.pos_x, self.pos_y
+					new_x, new_y = x, y
 					target = sprite
 					break
 		return target, new_x, new_y
 
+	def get_speed(self):
+		if self.target == None:
+			speed_x, speed_y = Bullet.SPEED_DICT[self.dir]
+		else:
+			x, y = self.center()
+			tx, ty = self.target.center()
+			dx, dy = tx - x, ty - y
+			speed_x = normalize(dx) * Bullet.SPEED
+			speed_y = normalize(dy) * Bullet.SPEED
+
+			if dy >= dx and dy > -dx:
+				self.dir = 'down'
+			elif dy <= -dx and dy > dx:
+				self.dir = 'left'
+			elif dy <= dx and dy < -dx:
+				self.dir = 'up'
+			elif dy >= -dx and dy < dx:
+				self.dir = 'right'
+		return (self.dir, speed_x, speed_y)
+
 	def draw(self):
 		if self.state == "original":
-			dx, dy = self.speed
-			target, self.pos_x, self.pos_y = self.collide(self.pos_x + dx, self.pos_y + dy)
-			if target:
-				self.hit_bullet()
-				target.got_hit()
+			if not self.is_stop:
+				self.dir, dx, dy = self.get_speed()
+				target, self.pos_x, self.pos_y = self.collide(self.pos_x + dx, self.pos_y + dy)
+				if target and target != self.father:
+					self.hit_bullet()
+					self.father.set_enemy(None)
+					target.got_hit()
 			self.screen.blit(self.costumes[self.dir], (self.pos_x, self.pos_y))
-			#if random.randint(0, 10) < 1:
-			#	self.dir = ['up', 'left', 'down', 'right'][random.randint(0, 3)]
-			#	self.speed = Bullet.SPEED_DICT[self.dir]
 		elif self.state == "booming":
 			bw, bh = self.resource.get_boom_size_scaled(int(self.boom_counter))
 			pos_x = self.pos_x + (self.tank_width - bw) / 2
 			pos_y = self.pos_y + (self.tank_height - bh) / 2
 			self.screen.blit(self.boom_costumes[int(self.boom_counter)], (pos_x, pos_y))
-			self.boom_counter += 0.1
+			if not self.is_stop:
+				self.boom_counter += 0.1
 			if self.boom_counter >= self.boom_stop:
 				self.state = "finished"
+
+	def toggle_stop(self):
+		self.is_stop = not self.is_stop
+
+	def got_hit(self):
+		if not self.finished() and not self.booming():
+			self.resource.play_hit_bullet_sound()
+			self.boom(2)
 
 class Game:
 
@@ -455,6 +531,9 @@ class Game:
 
 		self.my_tank = Tank(self.screen, self.resource, self.sprite_queue)
 		self.your_tank = Tank(self.screen, self.resource, self.sprite_queue, 'white')
+		self.my_tank.set_enemy(self.your_tank)
+		self.your_tank.set_enemy(self.my_tank)
+
 		self.sprite_queue.append(self.my_tank)
 		self.sprite_queue.append(self.your_tank)
 		self.tank_queue.append(self.my_tank)
@@ -464,7 +543,7 @@ class Game:
 		self.sprite_queue.append(self.pause_message)
 
 	def run(self):
-		self.resource.play_game_start()
+		#self.resource.play_game_start()
 		screen_w, screen_h = self.screen.get_size()
 		while True:
 			self.clock.tick(80)
@@ -498,8 +577,8 @@ class Game:
 					elif event.key == pg.K_p:
 						self.resource.play_game_pause()
 						self.pause_message.toggle_hidden()
-						for tank in self.tank_queue:
-							tank.toggle_stop()
+						for sprite in self.sprite_queue:
+							sprite.toggle_stop()
 
 			for sprite in self.sprite_queue:
 				if sprite.type() == "BULLET":
@@ -512,7 +591,6 @@ class Game:
 				if self.sprite_queue[sIdx].finished():
 					del self.sprite_queue[sIdx]
 				else: sIdx += 1
-			#self.sprite_queue = [s for s in self.sprite_queue if not s.finished()]
 
 			self.screen.fill(pg.Color("black"))
 			for sprite in self.sprite_queue:
