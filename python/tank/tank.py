@@ -385,7 +385,7 @@ class Tank:
 
 class Bullet:
 
-	SPEED = 1
+	SPEED = 10
 	SPEED_DICT = {
 		'up': (0, -SPEED),
 		'left': (-SPEED, 0),
@@ -402,8 +402,18 @@ class Bullet:
 		self.tank_width, self.tank_height = self.tank_size
 		self.sizes = resource.get_bullet_sizes_scaled()
 		w, h = self.sizes[dir]
-		self.pos_x = x + (self.tank_width - w) / 2
-		self.pos_y = y + (self.tank_height - h) / 2
+		if dir == "up":
+			self.pos_x = x + (self.tank_width - w) / 2
+			self.pos_y = y
+		elif dir == "left":
+			self.pos_x = x
+			self.pos_y = y + (self.tank_height - h) / 2
+		elif dir == "down":
+			self.pos_x = x + (self.tank_width - w) / 2
+			self.pos_y = y + self.tank_height - h
+		elif dir == "right":
+			self.pos_x = x + self.tank_width - w
+			self.pos_y = y + (self.tank_height - h) / 2
 		self.costumes = resource.get_bullet_costumes()
 		self.boom_costumes = resource.get_boom_costumes()
 		self.speed = Bullet.SPEED_DICT[dir]
@@ -455,14 +465,14 @@ class Bullet:
 	def collide(self, new_x, new_y):
 		target = None
 		x, y, w, h = self.position()
-		old_bbox = pg.Rect(x, y, w, h)
+
 		new_bbox = pg.Rect(new_x, new_y, w, h)
 		for sprite in self.sprites:
 			if (self != sprite and self.father != sprite and sprite.type() != "TEXT" and not sprite.finished() and not sprite.booming()):
 				sx, sy, sw, sh = sprite.position()
 				s_bbox = pg.Rect(sx, sy, sw, sh)
 				#if (not old_bbox.colliderect(s_bbox) and new_bbox.colliderect(s_bbox)):
-				if (not my_colliderect(old_bbox, s_bbox) and my_colliderect(new_bbox, s_bbox)):
+				if my_colliderect(new_bbox, s_bbox):
 					new_x, new_y = x, y
 					target = sprite
 					break
